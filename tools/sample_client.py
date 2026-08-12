@@ -82,6 +82,10 @@ def main() -> int:
     ap.add_argument("--frames", type=int, default=24, help="シミュレートするフレーム数")
     ap.add_argument("--grid", type=int, default=21, help="布の1辺の頂点数")
     ap.add_argument("--dump-obj", metavar="DIR", help="結果を .obj 連番で書き出す")
+    ap.add_argument("--substeps", type=int, default=16,
+                    help="1フレームの分割数。硬い布ほど大きくする")
+    ap.add_argument("--stretch", type=float, default=1.0e4, help="伸び剛性")
+    ap.add_argument("--bend", type=float, default=0.5, help="曲げ剛性")
     args = ap.parse_args()
 
     client = Client(args.url)
@@ -112,12 +116,22 @@ def main() -> int:
         fps=24.0,
         frame_start=1,
         frame_end=args.frames,
-        substeps=4,
+        substeps=args.substeps,
         body_frames=body_frames,
         body_triangles=body_tri,
         cloth_positions=cloth_pos,
         cloth_triangles=cloth_tri,
         pinned_vertices=[],
+        sim={
+            "cloth": {
+                "density": 0.2,
+                "stretch_stiffness": args.stretch,
+                "bend_stiffness": args.bend,
+                "friction": 0.3,
+                "damping": 0.01,
+                "thickness": 0.002,
+            }
+        },
     )
 
     nv_body = len(body_rest) // 3

@@ -172,6 +172,109 @@ return it->second.content;
 
 ---
 
+## D-008: ボディは Deformer ではなく ColliderTriMeshBase として入れる
+
+**状況**
+Phase 0 では `VBDClothBaseDeformer` を使って布メッシュの頂点を書き換える方針(D-005)だったが、
+実装時に `Modules/SpatialQuery/` を読み直したところ、Gaia には
+**`ColliderTriMeshBase`(キネマティックコライダー)という一級の仕組み**があった。
+さらに `ColliderTrimeshSequence` は `meshFiles` + `keyFrames` を受け取り、
+**サブステップ／イテレーション単位で補間する**アニメーションコライダーそのものだった。
+
+**選択肢**
+- (a) 当初どおり Deformer で布を全頂点固定にして書き換える
+- (b) `ColliderTrimeshSequence` をそのまま使う
+- (c) `ColliderTriMeshBase` を継承した独自コライダーを haori-server 側に書く
+
+**判断: (c)**
+(b) は フレームごとに `.obj` を `loadObj()` で読む実装なので、
+120 フレーム × 22 万頂点ではファイル I/O だけで実用にならない。
+`update(frameId, substepId, iter, numSubsteps, numIters)` を実装するだけでよいので、
+ベイク済み頂点をメモリ上で補間する `HaoriBodyCollider` を書いた。
+トポロジー確定のために1フレーム目だけ `.obj` に書き出して読ませている。
+
+`initializeCollider()` は仮想関数なので、`VBDClothSimulationFramework` を継承した
+`HaoriClothFramework` で差し替えるだけで済み、**Gaia 本体へのパッチは不要**。
+
+**warmup の実現方法**: コライダーのキーフレームを `warmup_frames` だけ後ろにずらす。
+`frameId < keyFrames.front()` の間はフレーム1の姿勢に留まるので、
+指示書 §7 の「フレーム1のボディ姿勢で布を落ち着かせる」がそのまま表現できる。
+
+---
+
+## D-009: Gaia 側の nlohmann/json (3.10.5) を使う
+
+**状況**
+`gaia_simulator.cpp` で `<nlohmann/json.hpp>`(external/thirdparty の 3.11.3)を
+include したところ、Gaia の関数がリンクできなかった。
+
+```
+error LNK2019: 未解決の外部シンボル "TriMeshParams::fromJson(...json_abi_v3_11_3...)"
+```
+
+nlohmann/json はバージョンごとに `json_abi_v3_11_3` のような inline namespace を切るため、
+Gaia (同梱 3.10.5) と別版を掴むと同じ関数が別シンボルになる。
+
+**判断**
+Gaia に渡す JSON を組む箇所では **`<Json/json.hpp>`(Gaia 同梱 3.10.5)** を使う。
+codec 層は 3.11.3 のままでよい。`codec.h` は json 型を境界に出していない
+(`parse_manifest` は `std::string` を取る)ので、2つの版が混ざることはない。
+
+---
+
+## D-010: bendingStiffness はメッシュ寸法で正規化する
+
+**状況(実測で判明)**
+Gaia 統合の直後、布がほとんど落ちなかった。ボディを遥か下に置いた**自由落下だけの試験**で
+軌跡を測ると、加速せず**等速**で落ちていた(理論値の 2.3%)。
+
+パラメータを振った結果:
+
+| 条件 | 自由落下の再現率 |
+|---|---|
+| substeps 4, stretch 1e4 / 1e3 / 1e2 / 1e1 | **すべて 0.023**(剛性が全く効かない) |
+| substeps 4 → 20 → 50 | 0.023 → 0.600 → 0.780 |
+| iterations 20 → 100 | 0.023 → 0.227 |
+| **bend_stiffness 0.5 → 0.05 → 0.005** | **0.023 → 0.171 → 0.652** |
+| **density 0.2 → 2 → 20** | **0.023 → 0.246 → 1.011** |
+
+犯人は**曲げ剛性と慣性の比**だった。Gaia の `bendingStiffness` は辺あたりの絶対量で、
+メッシュの寸法にも解像度にも追従しない。Gaia のサンプルは cm 単位・辺長 1.0 前後だが、
+haori のプロトコルはメートル単位で辺長が 0.005〜0.1 のオーダーになる。
+そこへ既定値 0.5 をそのまま渡すと曲げ項が慣性項を圧倒し、
+VBD が既定の反復回数で収束せず、布が平行移動すらできなくなる。
+
+**判断**
+`bendingStiffness = bend_stiffness × (平均辺長)²` として正規化する。
+これで自由落下の再現率は 1.00 になり、`stretch_stiffness` も期待どおり効くようになった。
+
+**併せて**: 収束の見込みを表す無次元数
+`stretch_stiffness · dt² / (density · 平均辺長²)` を計算し、
+100 を超えたらジョブの `message` で「substeps をいくつ以上にすべきか」を返す。
+利用者のパラメータを黙って書き換えるのは避け、警告に留めた。
+
+---
+
+## D-011: contactRadius はメッシュの平均辺長で頭打ちにする
+
+**状況(実機の服で判明)**
+実在のキャラクター(ボディ 225,184 頂点 / 服 31,926 頂点)で流したところ、
+シミュレーションは完走するが**服が全面的に毛羽立って破綻**した。
+
+原因は接触半径。`contactRadius = thickness + collision_margin = 0.005 m` に対し、
+この服の**平均辺長は 0.0048 m**。接触半径がほぼ辺長と同じになり、
+隣り合う頂点同士が常時「接触」と判定されて反発し合っていた。
+球の試験で問題が出なかったのは、あちらの辺長が 0.053 m と粗く、接触半径が辺長の 9% だったため。
+
+**判断**
+`contactRadius = min(thickness + collision_margin, 0.3 × 平均辺長)` とする。
+0.3 は Gaia のサンプル(辺長 1.0 前後に対し contactRadius 0.3)に合わせた。
+制限した場合はログに警告を出す。
+
+**副次効果**: 偽の接触対が激減し、同じジョブの所要時間が **270 秒 → 45 秒** になった。
+
+---
+
 ## 未解決 / 保留
 
 - **メッシュのメモリ内構築**: `TriMeshFEM` はファイルパスからの読み込み前提。

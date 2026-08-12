@@ -49,18 +49,38 @@ Ampere なら `.\tools\build_gaia_cloth.ps1 -CudaArchitectures 86`。
 
 ```powershell
 .\tools\setup_deps.ps1        # 未実行なら (cpp-httplib / nlohmann-json / spdlog も取得する)
-.\tools\build_server.ps1      # ビルド + ユニットテスト
-.\build\server\Release\haori-server.exe --port 8787 --engine dummy
+.\tools\build_server.ps1      # Gaia 込みでビルド + ユニットテスト (sm_120)
+
+# ⚠ 起動前に Embree/TBB の DLL パスを通すこと
+. .\external\deps.env.ps1
+.\build\server\Release\haori-server.exe --port 8787
 ```
+
+`--engine` の既定は `gaia`(Gaia VBD Cloth の本番シミュレータ)。
+`--engine dummy` にすると布を重力落下させるだけの検証用実装になり、Gaia を通らない。
+Gaia を外してビルドしたい場合は `.\tools\build_server.ps1 -NoGaia`。
 
 別のシェルから動作確認:
 
 ```powershell
-python tools\sample_client.py                 # 上下する球 + 布のジョブを1件流す
+python tools\sample_client.py --substeps 16   # 上下する球に布をドレープさせる
 python -m pytest tests\e2e -v                 # E2E (サーバーは自動で起動する)
 ```
 
-`--engine dummy` は布を重力で落とすだけの検証用実装。Gaia 統合は M3 で入る。
+### パラメータの勘どころ
+
+プロトコルの `sim` は Gaia のパラメータへ変換される(対応表は
+[`docs/gaia-survey.md`](docs/gaia-survey.md) §3.1)。とくに次の2点は
+**メッシュの寸法に合わせてサーバー側が補正する**ので、値をそのまま渡してよい:
+
+- `bend_stiffness` は平均辺長の2乗で正規化する。しないと布が落ちなくなる(D-010)
+- `contactRadius` は平均辺長の 0.3 倍で頭打ちにする。しないと布が毛羽立って破綻する(D-011)
+
+材質が硬すぎて `substeps` が足りない場合は、ジョブの `message` に
+「substeps をいくつ以上にすべきか」が入る(UI にそのまま出る)。
+
+調査用に、環境変数 `HAORI_GAIA_OVERRIDES` へ JSON を入れると Gaia のパラメータを
+直接上書きできる(例: `{"PhysicsParams":{"numSubsteps":20}}`)。通常の運用では使わない。
 
 ### ⚠ ハマりどころ
 
@@ -81,6 +101,19 @@ python -m pytest tests\e2e -v                 # E2E (サーバーは自動で起
 | M0: Gaia のビルド環境確立 | **完了** — sm_120 でビルド・実行とも成功 |
 | M1: Phase 0 調査 / Plan 決定 | **完了** — Plan A 採用 (`docs/gaia-survey.md`) |
 | M2: HTTP + codec + ジョブ管理(ダミーシミュレータ) | **完了** — unit 47件 / E2E 15件 通過 |
-| M3: Gaia 統合(静的ボディ) | 未着手 |
-| M4: アニメーションボディ対応 | 未着手 |
-| M5: 安定化・README 完成 | 未着手 |
+| M3: Gaia 統合(静的ボディ) | **完了** — 球へのドレープを確認 |
+| M4: アニメーションボディ対応 | **完了** — 上下する球 / 実キャラで確認 |
+| M5: 安定化・README 完成 | **完了** — NaN 監視・キャンセル・エラーコード・警告 |
+
+### 実データでの検証
+
+Blender 5.2 の実キャラクターシーン(ボディ **225,184 頂点** / 服 **31,926 頂点**)で
+haori-blender から流し、服が正しくドレープすることを確認済み。
+
+| 項目 | 値 |
+|---|---|
+| ボディ | CC_Base_Body 225,184 頂点 / 449,472 面 (Armature + Geometry Nodes) |
+| 服 | 31,926 頂点、平均辺長 4.8 mm |
+| 設定 | 4 フレーム + warmup 4、substeps 8、iterations 20 |
+| 所要 | **45 秒**(ベイク 2.1 秒 / 送信 10.3 MB) |
+| 結果 | NaN なし。頂点移動 平均 0.2 mm / 最大 6.0 mm |

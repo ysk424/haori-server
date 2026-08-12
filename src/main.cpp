@@ -21,7 +21,8 @@ void print_usage() {
 オプション:
   --host <addr>     待ち受けアドレス (既定: 127.0.0.1)
   --port <n>        待ち受けポート (既定: 8787)
-  --engine <name>   dummy | gaia   (既定: dummy)
+  --engine <name>   gaia | dummy   (既定: gaia)
+                    gaia  は Gaia (VBD Cloth) を使う本番シミュレータ
                     dummy は布を重力落下させるだけの検証用実装
   --log <level>     trace|debug|info|warn|error (既定: info)
   -h, --help        このヘルプ
@@ -41,7 +42,11 @@ int main(int argc, char** argv) {
     haori::ServerOptions options;
     options.version = kVersion;
 
-    std::string engine    = "dummy";
+#ifdef HAORI_WITH_GAIA
+    std::string engine = "gaia";
+#else
+    std::string engine = "dummy";
+#endif
     std::string log_level = "info";
 
     for (int i = 1; i < argc; ++i) {
@@ -86,9 +91,13 @@ int main(int argc, char** argv) {
     if (engine == "dummy") {
         simulator = haori::make_dummy_simulator();
     } else if (engine == "gaia") {
-        // M3 で実装する。それまでは誤って本番のつもりで起動しないよう明示的に落とす。
-        std::cerr << "engine=gaia はまだ実装されていない (M3 の作業)。--engine dummy を使うこと。\n";
+#ifdef HAORI_WITH_GAIA
+        simulator = haori::make_gaia_simulator();
+#else
+        std::cerr << "このビルドには Gaia が含まれていない "
+                     "(-DHAORI_WITH_GAIA=ON でビルドし直すこと)。\n";
         return 2;
+#endif
     } else {
         std::cerr << "不明な engine: " << engine << " (dummy | gaia)\n";
         return 2;

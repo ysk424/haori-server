@@ -117,7 +117,48 @@ Models.json の各モデルエントリ(`Simulator/Modules/TriMesh/TriMesh.cpp` 
 Parameters.json 側(`VBDClothPhysicsParameters.h`)に反復回数・サブステップ・重力・接触関連がある。
 `friction` / `thickness` / `collision_margin` は接触パラメータ
 (`Modules/CollisionDetector/CollisionDetertionParameters.h`, `ContactRelations.h`)側。
-正確なキー名の対応表は M3 で実装しながら本ドキュメントに追記する。
+### 3.1 確定した材質パラメータ対応表 (M3/M4 実装後)
+
+`src/sim/gaia_simulator.cpp` の `build_models_json` / `build_parameters_json` が正本。
+単位はすべてメートル・秒(プロトコル §1)。`L̄` は布の平均辺長。
+
+| プロトコル (§3.1) | Gaia | 変換 | 備考 |
+|---|---|---|---|
+| `cloth.density` | `density` (Models) | そのまま | |
+| `cloth.stretch_stiffness` | `miu`, `lambda` (Models) | 同じ値を両方へ | StVK のラメ定数。プロトコルは1値なので同値にする |
+| `cloth.bend_stiffness` | `bendingStiffness` (Models) | **× L̄²** | 正規化が必須。理由は D-010 |
+| `cloth.damping` | `dampingStVK`, `dampingBending` | **× 2.0e-4** | 既定 0.01 が Gaia の実績値 2e-6 に落ちるよう換算 |
+| `cloth.friction` | `boundaryFrictionDynamic/Static` | そのまま | |
+| `cloth.thickness` | `thickness` (Physics) | そのまま | |
+| `collision_margin` + `thickness` | `contactRadius` (Physics) | **min(…, 0.3×L̄)** | 頭打ちが必須。理由は D-011 |
+| — | `maxQueryDis` (ContactDetector) | `contactRadius × 1.5` | |
+| `stretch_stiffness` | `contactStiffness` (Physics) | × 10 | サンプルの比率に合わせた |
+| `iterations` | `iterations` | そのまま | |
+| `substeps` | `numSubsteps` | そのまま | |
+| `fps` | `timeStep` | `1/fps` | |
+| `gravity` | `gravity` | そのまま | Gaia は軸に依存しない(§5 の注意点も参照) |
+| `pinned_vertices` | `fixedPoints` (Models) | そのまま | |
+| `warmup_frames` | — | コライダーのキーフレームを後ろへずらす | D-008 |
+
+サーバー側で固定している主なもの:
+
+- `usePlaneGround = false`, `useBowlGround = false`, `checkAndUpdateWorldBounds = false`
+  — 服のシミュレーションに地面や境界ボックスは不要
+- `saveOutputs = false` ほか Gaia のファイル出力は全部オフ(結果はメモリで扱う)
+- `enableViewer = false` — 有効のままだと GUI 無効ビルドでプロセスが落ちる
+- `initializationType = 2`(前フレーム位置から解き始める。衝突下で安定)
+
+### 3.2 収束の目安
+
+VBD はガウス・ザイデル反復なので、慣性項に対して材質が硬すぎると既定の反復回数で収束しない。
+サーバーは次の無次元数を計算し、100 を超えたらジョブの `message` で警告する。
+
+```
+剛性/慣性比 = stretch_stiffness × dt² / (density × L̄²)      dt = 1/(fps × substeps)
+```
+
+実測では 100 以下なら `iterations = 20` で自由落下を正しく再現する。
+超える場合の推奨 substeps も同じ式から逆算して message に載せる。
 
 > 注意: プロトコル §6.3 の `stretch_stiffness` は単一値だが Gaia は `miu` / `lambda` の2値。
 > サーバー側で妥当な換算を行う(指示書 §6.3「サーバー側で妥当なデフォルトにマップ」に従う)。

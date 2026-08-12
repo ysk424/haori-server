@@ -43,4 +43,8 @@ public:
 /// HTTP・codec・ジョブ管理の貫通確認と、haori-blender 側の開発に使う。
 std::unique_ptr<ISimulator> make_dummy_simulator();
 
+/// Gaia (VBD Cloth) を使う本番シミュレータ。
+/// HAORI_WITH_GAIA を無効にしてビルドした場合はリンクされない。
+std::unique_ptr<ISimulator> make_gaia_simulator();
+
 }  // namespace haori

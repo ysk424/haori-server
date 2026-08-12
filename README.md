@@ -45,6 +45,23 @@ git submodule update --init --recursive
 `-CudaArchitectures` で GPU アーキテクチャを変えられる(既定 `120` = Blackwell)。
 Ampere なら `.\tools\build_gaia_cloth.ps1 -CudaArchitectures 86`。
 
+### サーバー本体のビルドと実行
+
+```powershell
+.\tools\setup_deps.ps1        # 未実行なら (cpp-httplib / nlohmann-json / spdlog も取得する)
+.\tools\build_server.ps1      # ビルド + ユニットテスト
+.\build\server\Release\haori-server.exe --port 8787 --engine dummy
+```
+
+別のシェルから動作確認:
+
+```powershell
+python tools\sample_client.py                 # 上下する球 + 布のジョブを1件流す
+python -m pytest tests\e2e -v                 # E2E (サーバーは自動で起動する)
+```
+
+`--engine dummy` は布を重力で落とすだけの検証用実装。Gaia 統合は M3 で入る。
+
 ### ⚠ ハマりどころ
 
 - **PATH に MinGW GCC があると CMake が GCC を選ぶ**。
@@ -63,7 +80,7 @@ Ampere なら `.\tools\build_gaia_cloth.ps1 -CudaArchitectures 86`。
 |---|---|
 | M0: Gaia のビルド環境確立 | **完了** — sm_120 でビルド・実行とも成功 |
 | M1: Phase 0 調査 / Plan 決定 | **完了** — Plan A 採用 (`docs/gaia-survey.md`) |
-| M2: HTTP + codec + ジョブ管理(ダミーシミュレータ) | 未着手 |
+| M2: HTTP + codec + ジョブ管理(ダミーシミュレータ) | **完了** — unit 47件 / E2E 15件 通過 |
 | M3: Gaia 統合(静的ボディ) | 未着手 |
 | M4: アニメーションボディ対応 | 未着手 |
 | M5: 安定化・README 完成 | 未着手 |

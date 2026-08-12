@@ -47,6 +47,28 @@ $Deps = @(
         Url     = 'https://github.com/RenderKit/embree/releases/download/v3.13.1/embree-3.13.1.x64.vc14.windows.zip'
         Archive = 'embree-3.13.1.x64.vc14.windows.zip'
         RootDir = 'embree-3.13.1.x64.vc14.windows'
+    },
+
+    # --- ここから下は haori-server 本体 (Gaia とは無関係) ---------------------
+    # CMake の FetchContent に取りに行かせない理由は docs/decisions.md D-006 を参照
+    # (PATH の MinGW 版 CMake は CA 証明書を持たず TLS 検証に失敗する)。
+    @{
+        Name    = 'cpp-httplib-0.18.3'
+        Url     = 'https://github.com/yhirose/cpp-httplib/archive/refs/tags/v0.18.3.zip'
+        Archive = 'cpp-httplib-0.18.3.zip'
+        RootDir = 'cpp-httplib-0.18.3'
+    },
+    @{
+        Name    = 'nlohmann-json-3.11.3'
+        Url     = 'https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.zip'
+        Archive = 'nlohmann-json-3.11.3.zip'
+        RootDir = 'json-3.11.3'
+    },
+    @{
+        Name    = 'spdlog-1.14.1'
+        Url     = 'https://github.com/gabime/spdlog/archive/refs/tags/v1.14.1.zip'
+        Archive = 'spdlog-1.14.1.zip'
+        RootDir = 'spdlog-1.14.1'
     }
 )
 

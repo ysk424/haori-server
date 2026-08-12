@@ -114,6 +114,64 @@ Blender から来る任意メッシュには存在しない。
 
 ---
 
+## D-006: C++ 依存も FetchContent ではなく自前取得にする
+
+**状況**
+haori-server 本体は cpp-httplib / nlohmann-json / spdlog を使う。当初 CMake の
+`FetchContent` で取得しようとしたが、**すべてのダウンロードが TLS エラーで失敗した**。
+
+```
+status_code: 60
+status_string: "SSL peer certificate or SSH remote key was not OK."
+```
+
+原因は D-003 と同根で、PATH 上の `cmake` が **MinGW 同梱版**
+(`WinLibs...\mingw64\share\cmake-4.3`)であり、バンドルされた curl が CA 証明書ストアを
+持っていないため。
+
+**選択肢**
+- (a) `CMAKE_TLS_VERIFY=0` を設定する → 検証を黙って無効化するので却下
+- (b) Visual Studio 同梱の CMake 3.31.6-msvc6 を使う → どの cmake が拾われるかに依存し脆い
+- (c) PowerShell (`Invoke-WebRequest`) で取得し、CMake は展開済みディレクトリを
+      `add_subdirectory` する
+
+**判断: (c)**
+`tools\setup_deps.ps1` に3つを追加した。利点:
+- .NET の TLS スタックを使うので証明書問題が起きない
+- どの CMake でビルドしても同じ結果になる
+- 2回目以降はネットワーク不要(オフラインビルド可)
+- Gaia 側の依存と入手方法が統一される
+
+CMakeLists は依存が無ければ `FATAL_ERROR` で `setup_deps.ps1` の実行を促す。
+
+---
+
+## D-007: cpp-httplib の `get_file_value()` は値返し
+
+**状況(実装中に踏んだバグ)**
+multipart のパートを次のように取り出したところ、POST するたびにサーバーが即クラッシュした。
+
+```cpp
+const std::string& require_part(...) {
+    return req.get_file_value(name).content;   // ダングリング参照
+}
+```
+
+`httplib::Request::get_file_value()` は `MultipartFormData` を**値で返す**ため、
+その `.content` を参照で受けると一時オブジェクトへの参照になる。
+
+**判断**
+`req.files`(`MultipartFormDataMap`)を直接引いて、保持されている実体への参照を返す。
+値返しを受けてもよいが、`body_frames` は数十 MB になるのでコピーは避けたい。
+
+```cpp
+auto it = req.files.find(name);
+if (it == req.files.end()) throw ProtocolError("missing_part", ...);
+return it->second.content;
+```
+
+---
+
 ## 未解決 / 保留
 
 - **メッシュのメモリ内構築**: `TriMeshFEM` はファイルパスからの読み込み前提。

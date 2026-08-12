@@ -10,6 +10,8 @@ out/
 # サードパーティのプリビルドバイナリ(tools/setup_deps.ps1 で再取得できるため追跡しない)
 external/thirdparty/
 external/downloads/
+# setup_deps.ps1 が生成する。絶対パスを含み環境依存なので追跡しない
+external/deps.env.ps1
 
 # Python
 __pycache__/

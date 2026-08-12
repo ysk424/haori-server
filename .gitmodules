@@ -1,0 +1,3 @@
+[submodule "external/Gaia"]
+	path = external/Gaia
+	url = https://github.com/AnkaChan/Gaia.git

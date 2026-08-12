@@ -1,0 +1,19 @@
+diff --git a/Simulator/VBDCloth/CMakeLists.txt b/Simulator/VBDCloth/CMakeLists.txt
+index 8eb4474..e6ff48a 100644
+--- a/Simulator/VBDCloth/CMakeLists.txt
++++ b/Simulator/VBDCloth/CMakeLists.txt
+@@ -3,9 +3,11 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+ 
+ project(GAIA_VBDCloth LANGUAGES CXX CUDA)
+ 
+-## Use C++11
+-set (CMAKE_CXX_STANDARD 11)
+-set (CMAKE_CUDA_STANDARD 11)   
++# [haori-server patch] 元は C++11 / CUDA C++11 指定。
++# CUDA 12.9 の nvcc は C++11 を受け付けず、Eigen 3.4 や nlohmann/json も C++14 以上を要求するため 17 に引き上げる。
++set (CMAKE_CXX_STANDARD 17)
++set (CMAKE_CUDA_STANDARD 17)
++set (CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ set(BUILD_PBD OFF)
+ set(BUILD_VBD OFF)

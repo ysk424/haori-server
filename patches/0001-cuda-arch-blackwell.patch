@@ -1,0 +1,19 @@
+diff --git a/Simulator/CMake/GAIA-config.cmake b/Simulator/CMake/GAIA-config.cmake
+index a7aee9e..756178b 100644
+--- a/Simulator/CMake/GAIA-config.cmake
++++ b/Simulator/CMake/GAIA-config.cmake
+@@ -2,7 +2,13 @@ cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
+ 
+ message( "Adding GAIA." )
+ 
+-set(CMAKE_CUDA_ARCHITECTURES 75;80;86)
++# [haori-server patch] Gaia 本体は Turing/Ampere (75;80;86) 決め打ちだった。
++# Blackwell (RTX 5070 Ti = sm_120) では ptxas がターゲットを持たずビルドが通らないため、
++# 外から -DCMAKE_CUDA_ARCHITECTURES を渡せるようにし、未指定時のみ既定値を使う。
++if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
++	set(CMAKE_CUDA_ARCHITECTURES 75;80;86)
++endif()
++message(STATUS "GAIA: CMAKE_CUDA_ARCHITECTURES = ${CMAKE_CUDA_ARCHITECTURES}")
+ 
+ find_package(Eigen3 REQUIRED)
+ find_package(MeshFrame2 REQUIRED PATHS ${CMAKE_CURRENT_LIST_DIR}/../3rdParty/MeshFrame2/MeshFrame/cmake)

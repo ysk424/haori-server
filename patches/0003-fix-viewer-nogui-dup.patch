@@ -1,0 +1,19 @@
+diff --git a/Simulator/Modules/Viewer/Viewer.cpp b/Simulator/Modules/Viewer/Viewer.cpp
+index 8db4095..0840e41 100644
+--- a/Simulator/Modules/Viewer/Viewer.cpp
++++ b/Simulator/Modules/Viewer/Viewer.cpp
+@@ -305,10 +305,9 @@ void GAIA::Viewer::killWindow()
+ {
+ 	GUINoCompliationError();
+ }
+-void GAIA::Viewer::frameTick()
+-{
+-	GUINoCompliationError();
+-}
+-#endif 
++// [haori-server patch] frameTick() は上の 276 行目で既に定義済み。
++// GAIA_NO_GUI 側のスタブが二重定義になっており MSVC が C2084 で落ちるため削除した。
++// (Gaia 本体は GUI 有効でしかビルドされていなかったと思われる)
++#endif
+ 
+ 

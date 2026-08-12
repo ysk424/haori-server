@@ -1,0 +1,25 @@
+# ビルド成果物
+build/
+out/
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+
+# サードパーティのプリビルドバイナリ(tools/setup_deps.ps1 で再取得できるため追跡しない)
+external/thirdparty/
+external/downloads/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# エディタ / OS
+.vs/
+.vscode/
+*.user
+Thumbs.db
+desktop.ini

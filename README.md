@@ -36,6 +36,10 @@ git submodule update --init --recursive
 # 4. Gaia の VBDCloth をビルド (M0 の検証対象)
 .\tools\build_gaia_cloth.ps1
 #    → build\gaia-vbdcloth\Release\GAIA_VBDCloth.exe
+
+# 5. 動作確認: 同梱の布サンプルを2フレームだけ走らせる
+.\tools\run_m0_sample.ps1 -NumFrames 2
+#    → build\m0_sample\out\*.ply が生成されれば OK
 ```
 
 `-CudaArchitectures` で GPU アーキテクチャを変えられる(既定 `120` = Blackwell)。
@@ -57,7 +61,7 @@ Ampere なら `.\tools\build_gaia_cloth.ps1 -CudaArchitectures 86`。
 
 | マイルストーン | 状態 |
 |---|---|
-| M0: Gaia のビルド環境確立 | ビルド成功。実行検証は残タスク |
+| M0: Gaia のビルド環境確立 | **完了** — sm_120 でビルド・実行とも成功 |
 | M1: Phase 0 調査 / Plan 決定 | **完了** — Plan A 採用 (`docs/gaia-survey.md`) |
 | M2: HTTP + codec + ジョブ管理(ダミーシミュレータ) | 未着手 |
 | M3: Gaia 統合(静的ボディ) | 未着手 |

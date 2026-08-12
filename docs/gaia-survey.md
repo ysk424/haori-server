@@ -221,4 +221,44 @@ MSVC が C2084 で停止する。Gaia 本体のバグで、GUI 無効ビルド�
 | 構成 | Release, `BUILD_GUI=OFF` (`GAIA_NO_GUI`) |
 | 結果 | **ビルド成功 (exit 0)** |
 
-`GAIA_VBDCloth.exe` の実行検証は M0 の残タスク。
+## 実行検証結果 (M0)
+
+`tools\run_m0_sample.ps1` で Gaia 同梱の `S03_MultiLayerClothOnCollider`
+(布5層 + 円柱コライダー)を 2 フレームだけ実行した。
+
+| 項目 | 値 |
+|---|---|
+| 終了コード | **0** |
+| 出力 | `.ply` 7 件(布5層 × 各フレーム + コライダー) |
+| 布の規模 | 4900 頂点 / 9522 面 × 5 層 = 約 24,500 頂点 |
+| コライダー | 1224 頂点 / 2444 面(全頂点 `fixedPoints`) |
+| ソルバ設定 | substeps 20 / iterations 15 / timeStep 1/60 |
+| 所要時間 | **約 2.27 秒/フレーム** (CPU) |
+| 内訳 | Material Solve 1982ms / DCD 279ms (BVH 27ms + 検出 252ms) |
+
+Embree・TBB・メッシュ読み込み・BVH による離散衝突検出(DCD)まで
+一通り正常に動作することを確認した。**M0 完了。**
+
+### 実行時にハマった点
+
+**`ViewerParams.enableViewer` を false にする必要がある。**
+`BUILD_GUI=OFF`(`GAIA_NO_GUI`)でビルドすると、Gaia のサンプル設定は
+`enableViewer: true` のままなので `VBDClothPhysics.cpp:40` から
+`initializeViewer()` → `GUINoCompliationError()` に入り、
+プロセスが `0xC0000409` で異常終了する。
+
+Parameters.json 側のフラグなのでパッチは不要。
+haori-server では常に `enableViewer: false` 相当で初期化する。
+
+**サンプルデータのコライダー用彩色 JSON が同梱されていない。**
+`CylinderCollider_tri.obj.vertexColoring.json` は repo に存在せず
+`Fail to open` の警告が出る(コライダーは全頂点固定なので実害なし)。
+D-004 の「彩色はサーバーが実行時に計算する」判断を裏付ける実例。
+
+### 性能の目安
+
+上記は CPU・布 24,500 頂点で 2.27 秒/フレーム。
+服1着(数千〜1万頂点程度)なら 1 フレームあたり 1 秒未満が期待できるが、
+substeps / iterations と衝突対象(ボディ)の規模に強く依存する。
+120 フレームのジョブで数分オーダーになる見込みで、
+指示書 §7 の「進捗はフレーム完了ごとに更新」は妥当な粒度。
